@@ -36,6 +36,45 @@ def config():
     train_cache_nn_inds  = None
     test_cache_nn_inds   = None
 
+@data_ingredient.named_config
+def s2s_global():
+    name = 's2s_global'
+    # batch_size = 200
+    # test_batch_size = 200
+    batch_size = 76
+    test_batch_size = 256
+    sampler = 'random_id'
+    data_path = 'data/street2shop'
+    recalls = [1, 3, 5, 10, 20]
+    crop_size = 384
+
+    train_file = 'train.txt'
+    test_file = 'valid.txt'
+    sample_per_id = 2
+    assert (batch_size % sample_per_id == 0)
+    num_identities = batch_size // sample_per_id 
+    num_iterations = 59551 // batch_size
+
+@data_ingredient.named_config
+def s2s_rerank():
+    name = 's2s_rerank'
+    batch_size = 76
+    test_batch_size = 256
+    sampler = 'triplet'
+    data_path = 'data/street2shop'
+    recalls = [1, 3, 5, 10, 20]
+    crop_size = 384
+    train_file = 'train.txt'
+    test_file = 'valid.txt'
+
+    sample_per_id = 2
+    assert (batch_size % sample_per_id == 0)
+    num_identities = batch_size // sample_per_id 
+    num_iterations = 59551 // batch_size
+
+    train_cache_nn_inds  = 'rrt_sop_caches/rrt_r50_s2s_nn_inds_train.pkl'
+    test_cache_nn_inds   = 'rrt_sop_caches/rrt_r50_s2s_nn_inds_test.pkl'
+
 
 @data_ingredient.named_config
 def sop_global():
@@ -64,8 +103,10 @@ def get_transforms(crop_size):
         transforms.RandomResizedCrop(size=crop_size),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.ToTensor()])
-    test_transform.append(transforms.Resize((256, 256)))
-    test_transform.append(transforms.CenterCrop(size=224))
+    # test_transform.append(transforms.Resize((256, 256)))
+    test_transform.append(transforms.Resize((384, 384)))
+    # test_transform.append(transforms.CenterCrop(size=224))
+    test_transform.append(transforms.CenterCrop(size=384))
     test_transform.append(transforms.ToTensor())
     return transforms.Compose(train_transform), transforms.Compose(test_transform)
 
@@ -75,6 +116,17 @@ def read_file(filename):
         lines = f.read().splitlines()
     return lines
 
+def split_samples(samples):
+    last_id = -1
+    street_samples = []
+    shop_samples = []
+    for img_path, id in samples:
+        if id != last_id:
+            street_samples.append((img_path, id))
+            last_id = id
+        else:
+            shop_samples.append((img_path, id))
+    return street_samples, shop_samples
 
 @data_ingredient.capture
 def get_sets(name, data_path, train_file, test_file, num_workers):
@@ -82,8 +134,13 @@ def get_sets(name, data_path, train_file, test_file, num_workers):
 
     train_lines = read_file(osp.join(data_path, train_file))
     train_samples = [(osp.join(data_path, line.split(',')[0]), int(line.split(',')[1])) for line in train_lines]
-    train_set = ImageDataset(train_samples, transform=train_transform)
-    query_train_set = ImageDataset(train_samples, transform=test_transform)
+    # train_set = ImageDataset(train_samples, transform=train_transform)
+    # query_train_set = ImageDataset(train_samples, transform=test_transform)
+
+    # for 'triplet' sampler
+    train_street_samples, train_shop_samples = split_samples(train_samples)
+    train_set = ImageDataset(train_shop_samples, transform=train_transform)
+    query_train_set = ImageDataset(train_street_samples, transform=test_transform)
 
     if isinstance(test_file, list) and len(test_file) == 2:
         query_lines   = read_file(osp.join(data_path, test_file[0]))
@@ -94,9 +151,16 @@ def get_sets(name, data_path, train_file, test_file, num_workers):
         gallery_set = ImageDataset(gallery_samples, transform=test_transform)
     else:
         query_lines   = read_file(osp.join(data_path, test_file))
+        # query_samples: [(img_path, id)]
         query_samples = [(osp.join(data_path, line.split(',')[0]), int(line.split(',')[1])) for line in query_lines]
-        query_set = ImageDataset(query_samples, transform=test_transform)
-        gallery_set = None
+        # query_set = ImageDataset(query_samples, transform=test_transform)
+        # gallery_set = None
+
+        street_samples, shop_samples = split_samples(query_samples)
+        # use first lines for each id
+        query_set = ImageDataset(street_samples, transform=test_transform)
+        # use lines, except first
+        gallery_set = ImageDataset(shop_samples, transform=test_transform)
 
     return (train_set, query_train_set), (query_set, gallery_set)
 
