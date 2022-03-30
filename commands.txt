@@ -1,0 +1,271 @@
+RerankingTransformer
+====================
+
+git clone https://github.com/uvavision/RerankingTransformer.git
+
+conda create -n rrt python=3.6
+conda activate rrt
+pip install -r requirements.txt
+
+# pip install faiss
+python experiment_global.py -F logs/train_global_r50 with temp_dir=logs/train_global_r50 \
+  dataset.sop_global model.resnet50 dataset.batch_size=800 dataset.test_batch_size=800
+
+ImportError: libopenblas.so.0: cannot open shared object file: No such file or directory
+sudo apt-get install libopenblas-dev
+
+ImportError: libomp.so: cannot open shared object file: No such file or directory
+sudo apt-get install libomp-dev
+
+https://github.com/facebookresearch/faiss/issues/821
+
+conda install faiss-cpu -c pytorch
+
+RuntimeError: CUDA error: no kernel image is available for execution on the device
+NVIDIA GeForce RTX 3090 with CUDA capability sm_86 is not compatible with the current PyTorch installation.
+The current PyTorch install supports CUDA capabilities sm_37 sm_50 sm_60 sm_70 sm_75.
+If you want to use the NVIDIA GeForce RTX 3090 GPU with PyTorch, please check the instructions at https://pytorch.org/get-started/locally/
+
+newer pytorch is needed
+
+# 11-03-2022
+cd ~/Documents/image_retrieval_re-ranking/RerankingTransformer/
+conda create -n rrt2 python=3.6
+conda activate rrt2
+pip install -r requirements-wcz.txt
+
+conda install faiss-cpu -c pytorch
+conda install mkl_fft -y
+
+cd RRT_SOP/
+
+python experiment_global.py -F logs/train_global_r50 with temp_dir=logs/train_global_r50 \
+  dataset.sop_global model.resnet50 dataset.batch_size=800 dataset.test_batch_size=800
+
+torch, torchvision and min cuda for RTX 3090 cuda 11.1
+pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+
+# CUDA 11.3
+# pip install torch==1.9.0+cu113 torchvision==0.10.0+cu113 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+--------------------------------------------                                    
+FAISS initialized
+--------------------------------------------
+Index features added, start KNN searching
+INTEL MKL ERROR: /home/wojciech/anaconda3/envs/rrt2/lib/python3.6/site-packages/faiss/../../.././libmkl_def.so.2: undefined symbol: mkl_sparse_optimize_bsr_trsm_i8.
+Intel MKL FATAL ERROR: Cannot load libmkl_def.so.2.
+
+# pip install faiss-cpu
+# pip install mkl
+conda install mkl_fft -y
+
+# Global retrieval
+# ===========================
+# Training using ResNet50 as the backbone
+python experiment_global.py -F logs/train_global_r50 with temp_dir=logs/train_global_r50 \
+      dataset.sop_global model.resnet50 dataset.batch_size=200 dataset.test_batch_size=200
+
+run 11
+Documents/image_retrieval_re-ranking/RerankingTransformer/RRT_SOP/logs/train_global_r50/11
+
+Validation [031]
+{1: 77.89, 10: 90.33, 100: 96.2, 1000: 98.87}
+
+# For each training image, we need its top-100 nearest neighbors from the global retrieval, you can generate the nearest neighbors file by running:
+# rrt_sop_ckpts/resnet50_sop_global.pt
+python eval_global.py -F logs/nn_file_for_training with temp_dir=logs/nn_file_for_training \
+      resume=rrt_sop_ckpts/resnet50_sop_global.pt dataset.sop_global model.resnet50 \
+      query_set='train'
+
+{1: 83.93, 10: 96.25, 100: 99.41, 1000: 99.94}
+
+python eval_global.py -F logs/nn_file_for_testing with temp_dir=logs/nn_file_for_testing \
+      resume=rrt_sop_ckpts/resnet50_sop_global.pt dataset.sop_global model.resnet50 \
+      query_set='test'
+
+{1: 78.1, 10: 90.5, 100: 96.09, 1000: 98.88}
+
+python eval_global.py -F logs/eval_global_r50 with temp_dir=logs/eval_global_r50 \
+      resume=rrt_sop_ckpts/resnet50_sop_global.pt dataset.sop_global model.resnet50
+{1: 78.1, 10: 90.5, 100: 96.09, 1000: 98.88}
+
+
+# Reranking (frozen backbone)
+# ===========================
+# Run the training
+# logs/nn_file_for_testing/nn_inds.pkl
+# cp logs/nn_file_for_testing/nn_inds.pkl rrt_sop_caches/rrt_r50_sop_nn_inds_test.pkl
+# cp logs/nn_file_for_training/nn_inds.pkl rrt_sop_caches/rrt_r50_sop_nn_inds_test.pkl
+cp logs/eval_global_r50/nn_inds.pkl rrt_sop_caches/rrt_r50_sop_nn_inds_test.pkl
+
+
+python experiment_rerank.py -F logs/train_rerank_frozen_r50 with temp_dir=logs/train_rerank_frozen_r50 \
+      dataset.sop_rerank model.resnet50 model.freeze_backbone=True \
+      resume=rrt_sop_ckpts/resnet50_sop_global.pt
+# 2>/dev/null
+
+{1: 19.48, 10: 82.86, 100: 91.83}
+
+Run 10
+  File "/home/wojciech/Documents/image_retrieval_re-ranking/RerankingTransformer/RRT_SOP/models/matcher.py", line 53, in forward
+    input_feats = torch.cat([cls_embed, src_local, sep_embed, tgt_local], -1).permute(2, 0, 1)
+RuntimeError: Sizes of tensors must match except in dimension 0. Got 0 and 1 (The offending index is 0)
+
+# new model
+# train_global_r50a
+python experiment_global.py -F logs/train_global_r50a with temp_dir=logs/train_global_r50a \
+      dataset.sop_global model.resnet50 dataset.batch_size=200 dataset.test_batch_size=200
+
+cp logs/train_global_r50a/resnet50_sop_global.pt rrt_sop_ckpts/resnet50_sop_global_2.pt
+
+# create test ids
+python eval_global.py -F logs/eval_global_r50a with temp_dir=logs/eval_global_r50a \
+      resume=rrt_sop_ckpts/resnet50_sop_global_2.pt dataset.sop_global model.resnet50
+
+cp logs/eval_global_r50a/nn_inds.pkl rrt_sop_caches/rrt_r50_sop_nn_inds_test_2.pkl
+
+# create train ids
+python eval_global.py -F logs/nn_file_for_training_2 with temp_dir=logs/nn_file_for_training_2 \
+      resume=rrt_sop_ckpts/resnet50_sop_global_2.pt dataset.sop_global model.resnet50 \
+      query_set='train'
+
+cp logs/nn_file_for_training_2/nn_inds.pkl rrt_sop_caches/rrt_r50_sop_nn_inds_train_2.pkl
+
+# train reranking (frozen backbone) - 2nd set of ids files
+===================================
+
+python experiment_rerank.py -F logs/train_rerank_frozen_r50_2 with temp_dir=logs/train_rerank_frozen_r50_2 \
+      dataset.sop_rerank model.resnet50 model.freeze_backbone=True \
+      resume=rrt_sop_ckpts/resnet50_sop_global_2.pt
+
+  File "/home/wojciech/Documents/image_retrieval_re-ranking/RerankingTransformer/RRT_SOP/models/matcher.py", line 53, in forward
+    input_feats = torch.cat([cls_embed, src_local, sep_embed, tgt_local], -1).permute(2, 0, 1)
+RuntimeError: Sizes of tensors must match except in dimension 0. Got 0 and 1 (The offending index is 0)
+
+tgt_local
+
+#
+#RRT_SOP/utils/data/dataset_ingredient.py
+#
+def sop_rerank():
+    name = 'sop_rerank'
+    batch_size = 300
+    test_batch_size = 600
+    sampler = 'triplet'
+    recalls = [1, 10, 100]
+
+    train_cache_nn_inds  = 'rrt_sop_caches/rrt_r50_sop_nn_inds_train_2.pkl'
+    test_cache_nn_inds   = 'rrt_sop_caches/rrt_r50_sop_nn_inds_test_2.pkl'
+
+
+python experiment_rerank.py -F logs/train_rerank_frozen_r50_2 with temp_dir=logs/train_rerank_frozen_r50_2 \
+      dataset.sop_rerank model.resnet50 model.freeze_backbone=True \
+      resume=rrt_sop_ckpts/resnet50_sop_global_2.pt cache_nn_inds=rrt_sop_caches/rrt_r50_sop_nn_inds_test_2.pkl
+
+
+Validation [001]
+{1: 30.24, 10: 82.03, 100: 86.64}
+Validation [002]
+{1: 36.29, 10: 83.09, 100: 86.64}
+Validation [003]
+{1: 42.42, 10: 83.73, 100: 86.64}
+
+3 min/epoch - 100ep - 5h
+
+# train reranking (frozen backbone) - 1st set of ids files
+===================================
+python experiment_rerank.py -F logs/train_rerank_frozen_r50 with temp_dir=logs/train_rerank_frozen_r50 \
+      dataset.sop_rerank model.resnet50 model.freeze_backbone=True \
+      resume=rrt_sop_ckpts/resnet50_sop_global.pt cache_nn_inds=rrt_sop_caches/rrt_r50_sop_nn_inds_test.pkl
+
+{1: 19.48, 10: 82.86, 100: 91.83}
+Validation [000]
+{1: 32.05, 10: 87.33, 100: 91.83}
+Validation [001]
+{1: 43.37, 10: 88.59, 100: 91.83}
+
+# train global 100 epochs
+python experiment_global.py -F logs/train_global_r50 with temp_dir=logs/train_global_r50 \
+      dataset.sop_global model.resnet50 dataset.batch_size=200 dataset.test_batch_size=200
+
+run 13
+
+Validation [099]
+{1: 80.05, 10: 91.66, 100: 96.72, 1000: 99.03}
+INFO - Global (train) - Result: 80.1
+INFO - Global (train) - Completed after 5:37:10
+model: resnet50_sop_global_3.pt
+
+# train reranking (frozen backbone)
+
+python experiment_rerank.py -F logs/train_rerank_frozen_r50 with temp_dir=logs/train_rerank_frozen_r50 \
+      dataset.sop_rerank model.resnet50 model.freeze_backbone=True \
+      resume=rrt_sop_ckpts/resnet50_sop_global_3.pt cache_nn_inds=rrt_sop_caches/rrt_r50_sop_nn_inds_test.pkl
+
+run 12
+17:45 - 3 epochs, 1065s, 355 s/ep, 6 min/epoch, total 10h
+
+time 8.850711849495492e-05
+{1: 19.12, 10: 82.57, 100: 91.83}
+Validation [000]
+{1: 38.88, 10: 88.46, 100: 91.83}
+Validation [004]
+{1: 67.2, 10: 90.42, 100: 91.83}
+Validation [012]
+{1: 78.46, 10: 91.08, 100: 91.83}
+Validation [064]
+{1: 81.97, 10: 91.33, 100: 91.83}
+Validation [099]
+{1: 82.13, 10: 91.35, 100: 91.83}
+INFO - Rerank (train) - Result: 82.18
+INFO - Rerank (train) - Completed after 7:36:42
+
+
+# train reranking (finetuned backbone)
+
+run 2
+python experiment_rerank.py -F logs/train_rerank_finetune_r50 with temp_dir=logs/train_rerank_finetune_r50 \
+      dataset.sop_rerank model.resnet50 model.freeze_backbone=False \
+      resume=rrt_sop_ckpts/resnet50_sop_rerank_frozen_12.pt dataset.batch_size=150 dataset.test_batch_size=300
+
+RuntimeError: CUDA out of memory. Tried to allocate 230.00 MiB (GPU 0; 23.70 GiB total capacity; 21.52 GiB already allocated; 23.06 MiB free; 21.84 GiB reserved in total by PyTorch)
+
+run 3
+{1: 82.18, 10: 91.34, 100: 91.83}
+Validation [000]
+{1: 79.76, 10: 91.02, 100: 91.83}
+Validation [007]
+{1: 81.14, 10: 91.11, 100: 91.83}
+Validation [099]
+{1: 83.51, 10: 91.49, 100: 91.83}
+INFO - Rerank (train) - Result: 83.58
+INFO - Rerank (train) - Completed after 15:19:15
+
+# evaluation (frozen backbone)
+python eval_rerank.py -F logs/eval_rerank_frozen_r50 with temp_dir=logs/eval_rerank_frozen_r50 \
+      resume=rrt_sop_ckpts/resnet50_sop_rerank_frozen_12.pt dataset.sop_rerank model.resnet50 \
+      cache_nn_inds=rrt_sop_caches/rrt_r50_sop_nn_inds_test.pkl
+
+{1: 81.32, 10: 92.11, 100: 96.09}
+INFO - Rerank (eval) - Completed after 0:07:10
+
+# evaluation (finetuned backbone)
+python eval_rerank.py -F logs/eval_rerank_frozen_r50 with temp_dir=logs/eval_rerank_frozen_r50 \
+      resume=rrt_sop_ckpts/resnet50_sop_rerank_finetune_3.pt dataset.sop_rerank model.resnet50 \
+      cache_nn_inds=rrt_sop_caches/rrt_r50_sop_nn_inds_test.pkl
+
+# evaluation (global)
+python eval_global.py -F logs/eval_global_r50 with temp_dir=logs/eval_global_r50 \
+      resume=rrt_sop_ckpts/resnet50_sop_global_3.pt dataset.sop_global model.resnet50
+
+{1: 80.11, 10: 91.63, 100: 96.69, 1000: 99.01}
+INFO - Global (eval) - Completed after 0:01:27
+
+# ======================
+global    {1: 80.11, 10: 91.63, 100: 96.69, 1000: 99.01}
+frozen    {1: 81.32, 10: 92.11, 100: 96.09}
+finetuned {1: 82.6, 10: 92.31, 100: 96.09}
+81.32-80.11=1,21
+82.6-81.32=1,28
+
+81.8-80.7=1,1
+84.5-81.8=2,7
