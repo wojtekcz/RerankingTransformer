@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# data folders
+RRT_SOP/data
+RRT_SOP/logs
+RRT_SOP/rrt_sop_ckpts
+RRT_SOP/rrt_sop_caches
