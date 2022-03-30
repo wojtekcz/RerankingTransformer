@@ -1,0 +1,20 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "RRT_SOP/experiment_rerank.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/RRT_SOP/experiment_rerank.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["-F", "logs/train_rerank_frozen_r50_2", "with", "temp_dir=logs/train_rerank_frozen_r50_2",
+              "dataset.sop_rerank", "model.resnet50", "model.freeze_backbone=True",
+              "resume=rrt_sop_ckpts/resnet50_sop_global_2.pt", "cache_nn_inds=rrt_sop_caches/rrt_r50_sop_nn_inds_test_2.pkl"],
+            "cwd": "${workspaceFolder}/RRT_SOP"
+        }
+    ]
+}
